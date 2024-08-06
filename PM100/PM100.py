@@ -124,8 +124,6 @@ class PM100():
         '''
         Take a power measurement
 
-        <wavelength>:
-            set measurement wavelength
         <type>:
             measurement type to conduct - 'single' or 'average'
         <n_samples>:
@@ -143,7 +141,8 @@ class PM100():
             data = self.average()
         else:
             data = self.power_meter.read/self.conversion
-            print(f"Power reading: {round(data, 2)}{self.unit}")
+            if self.verbose:
+                print(f"Power reading: {round(data, 2)}{self.unit}")
 
         return data
     
