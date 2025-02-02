@@ -11,7 +11,7 @@ Date: 13/02/2024
 from KCube import KinesisMotor
 
 # initialise the device (serial number needs to be string - found on the KDC101)
-KCube = KinesisMotor(devicename='PRM1-MZ8' serial_no="27267199")
+KCube = KinesisMotor(devicename='PRM1-MZ8', serial_no="27267199")
 # move the device to position 200 degs
 KCube.move_to(200)
 # change the speed (mm/s) and acceleration (mm/s^2) of the device
