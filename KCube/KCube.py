@@ -73,7 +73,20 @@ class KinesisMotor:
         self.initialise()
         self.get_limits()
         self.get_vel_params()
-         
+    
+    def __enter__(self):
+        '''
+        Auto-connect on use when entering the "with" block
+        '''
+        self.initialise()
+        return self
+
+    def __exit__(self):
+        '''
+        Auto-disconnect on use when exiting the "with" block
+        '''
+        self.disconnect()
+        
     def disconnect(self):
         '''
         Disconnect from the device and shut down
@@ -131,13 +144,9 @@ class KinesisMotor:
         Return the current position of the device
         
         '''
-        try:
-            pos = Decimal.ToDouble(self.device.Position)
-
-        except (NameError, AttributeError) as e:
-            raise Exception('Please initialize the device first') from e
-
-        return pos
+        if not hasattr(self, 'device') or self.device is None:
+            raise Exception("Device not initialized. Call `initialise()` first.")
+        return Decimal.ToDouble(self.device.Position)
         
     def get_vel_params(self):
         '''
@@ -162,36 +171,47 @@ class KinesisMotor:
         
         time.sleep(0.1)
         
-    def initialise(self, home=True):
+    def initialise(self, home=False):
         '''
         Initialise the device and begin connection
 
         <home>:
             choose to return the motor to home position
-
         '''
-        # attempt to connect to device
+        # Prevent multiple connections
+        if hasattr(self, "device") and self.device.IsConnected:
+            print("Device is already connected.")
+            return
+
         try:
             self.device.Connect(self.serial_no)
-            # wait for connection
+            # Wait for connection
             if not self.device.IsSettingsInitialized():
-                self.device.WaitForSettingsInitialized(5000) # 5 sec timeout
-                assert self.device.IsSettingsInitialized() is True
-            # set configuration for the motor
+                self.device.WaitForSettingsInitialized(5000)  # 5 sec timeout
+                assert self.device.IsSettingsInitialized()
+
+            # Set configuration for the motor
             self.load_config()
-            # begin communication with device
+            # Begin communication with device
             self.start_polling()
-            # print out connection success
+            # Print connection success
             if self.verbose:
                 deviceInfo = self.device.GetDeviceInfo()
                 print(f'Motor Connected: {deviceInfo.Name}, SN: {deviceInfo.SerialNumber}')
-            # return motor to home position          
-            if self.home:
-                self.go_to_home()  
 
+            # Set connection flag
+            self.connected = True
+            # Return motor to home position          
+            if self.home:
+                self.go_to_home()
+
+        except AttributeError as e:
+            print(f"Attribute error: {e}. Check if the device object was created properly.")
+        except RuntimeError as e:
+            print(f"Runtime error: {e}. The device might be disconnected or in an invalid state.")
         except Exception as e:
-            print(f'Unexpected errror occured: {e}')
-    
+            print(f"Unexpected error occurred: {e}. Check the device connection and configuration.")
+        
     def load_config(self):
         '''
         Get config from the device        
@@ -206,7 +226,7 @@ class KinesisMotor:
         self.device.SetSettings(self.device.MotorDeviceSettings, True, False)
         time.sleep(0.1)
 
-    def move_to(self, position: float, tolerance: float=0.02):
+    def move_to(self, position: float, tolerance: float=0.02, timeout=50000):
         '''
         Move the stage to the desired position
         
@@ -225,7 +245,7 @@ class KinesisMotor:
                 print(f'Moving Motor to {position}')
             # set move position and then move
             self.device.SetMoveAbsolutePosition(Decimal(position)) 
-            self.device.MoveAbsolute(50000)
+            self.device.MoveAbsolute(timeout)
             # check correct location and 
             current_pos = self.get_pos()
             if abs(current_pos - position) <= tolerance:
